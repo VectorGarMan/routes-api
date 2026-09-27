@@ -75,6 +75,37 @@ collection:
         send: true
         store: true
       rebuildPath: true
+  - url: localhost:8080/api/v1/routes/optimize
+    name: ✅Calcular Ruta Óptima (BE-008)
+    meta:
+      id: req_c3d4e5f6a7b84c9d0e1f2a3b4c5d6e7f
+      created: 1790533000000
+      modified: 1790533000000
+      isPrivate: false
+      description: "Calcula la ruta óptima para un conjunto de puntos ya registrados. pointIds y depotPointId deben ser IDs devueltos por POST /api/v1/delivery-points."
+      sortKey: -1790533000000
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+          "pointIds": ["<id-punto-1>", "<id-punto-2>", "<id-punto-3>"],
+          "objective": "DISTANCE",
+          "depotPointId": "<id-punto-1>"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+      - name: User-Agent
+        value: insomnia/12.0.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
 cookieJar:
   name: Default Jar
   meta:
