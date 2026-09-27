@@ -2,7 +2,11 @@ package routesservices.routesservices.client;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import routesservices.routesservices.exception.MapsRateLimitException;
+import routesservices.routesservices.exception.MapsUnavailableException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,14 +34,20 @@ public class MapboxClient {
     }
 
     private MapboxGeocodeResponse fetch(String query) {
-        return restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/geocoding/v5/mapbox.places/{query}.json")
-                        .queryParam("access_token", accessToken)
-                        .queryParam("limit", 1)
-                        .build(query))
-                .retrieve()
-                .body(MapboxGeocodeResponse.class);
+        try {
+            return restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/geocoding/v5/mapbox.places/{query}.json")
+                            .queryParam("access_token", accessToken)
+                            .queryParam("limit", 1)
+                            .build(query))
+                    .retrieve()
+                    .body(MapboxGeocodeResponse.class);
+        } catch (HttpClientErrorException.TooManyRequests ex) {
+            throw new MapsRateLimitException("Límite de solicitudes a Mapbox excedido");
+        } catch (RestClientException ex) {
+            throw new MapsUnavailableException("El servicio de mapas (Mapbox) no está disponible", ex);
+        }
     }
 
     private GeocodeResult toResult(MapboxGeocodeResponse response) {

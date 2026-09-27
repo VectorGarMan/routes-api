@@ -7,13 +7,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import routesservices.routesservices.dto.ApiError;
 import routesservices.routesservices.dto.ApiResponse;
+import routesservices.routesservices.dto.ErrorCode;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Manejo mínimo de errores para BE-003 (LOCATION_INVALID, VALIDATION_ERROR).
- * BE-004 unifica aquí los códigos restantes (MAPS_UNAVAILABLE, MAPS_RATE_LIMIT).
+ * Manejo unificado de errores de captura y Maps (BE-004).
+ * code es estable para el frontend; message puede cambiar sin romper integraciones.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,7 +22,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(LocationInvalidException.class)
     public ResponseEntity<ApiResponse<Void>> handleLocationInvalid(LocationInvalidException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ApiResponse.error(ex.getMessage(), new ApiError("LOCATION_INVALID", null)));
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.LOCATION_INVALID.name(), null)));
+    }
+
+    @ExceptionHandler(MapsUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMapsUnavailable(MapsUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.MAPS_UNAVAILABLE.name(), null)));
+    }
+
+    @ExceptionHandler(MapsRateLimitException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMapsRateLimit(MapsRateLimitException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.MAPS_RATE_LIMIT.name(), null)));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -31,12 +44,12 @@ public class GlobalExceptionHandler {
                 .forEach(fieldError -> fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage()));
 
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Datos inválidos", new ApiError("VALIDATION_ERROR", fieldErrors)));
+                .body(ApiResponse.error("Datos inválidos", new ApiError(ErrorCode.VALIDATION_ERROR.name(), fieldErrors)));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ex.getMessage(), new ApiError("VALIDATION_ERROR", null)));
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.VALIDATION_ERROR.name(), null)));
     }
 }
