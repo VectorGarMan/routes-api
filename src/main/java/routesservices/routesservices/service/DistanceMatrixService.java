@@ -22,13 +22,27 @@ public class DistanceMatrixService {
     }
 
     public DistanceMatrixResult buildMatrix(List<DeliveryPoint> points) {
+        return buildMatrix(points, new MapsQueryCache(), "DEFAULT");
+    }
+
+    /**
+     * @param cache          caché de la sesión de cálculo actual (BE-007); el llamador la crea
+     *                       al iniciar el cálculo y deja de referenciarla al terminarlo.
+     * @param trafficContext dimensión adicional de la clave de caché (BE-010 la alimentará con
+     *                       el contexto de tráfico real; por ahora es un identificador simple).
+     */
+    public DistanceMatrixResult buildMatrix(List<DeliveryPoint> points, MapsQueryCache cache, String trafficContext) {
         int n = points.size();
         BigDecimal[][] distanceMatrix = new BigDecimal[n][n];
         BigDecimal[][] timeMatrix = new BigDecimal[n][n];
 
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
-                DistanceTimeResult result = pointDistanceService.getDistanceAndTime(points.get(i), points.get(j));
+                DeliveryPoint origin = points.get(i);
+                DeliveryPoint destination = points.get(j);
+                DistanceTimeResult result = cache.getOrCompute(
+                        origin.getId(), destination.getId(), trafficContext,
+                        () -> pointDistanceService.getDistanceAndTime(origin, destination));
                 distanceMatrix[i][j] = result.distanceMeters();
                 timeMatrix[i][j] = result.durationSeconds();
             }
