@@ -118,12 +118,12 @@ erDiagram
 
 ## Implementación
 
-- Migraciones gestionadas con Flyway (`org.flywaydb:flyway-core` + `flyway-database-postgresql`), ubicadas en `src/main/resources/db/migration`.
-- `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida el esquema contra las entidades JPA, pero Flyway es la única fuente de verdad para crear/modificar tablas.
+- El esquema se aplica manualmente ejecutando `sql/schema.sql` contra la base de datos (sin herramienta de migración automática).
+- `spring.jpa.hibernate.ddl-auto=none`: Hibernate no crea, valida ni modifica el esquema; el script SQL es la única fuente de verdad.
 - Credenciales de conexión (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) se leen de variables de entorno, con valores por defecto solo para desarrollo local.
 
 ## Verificación (`done_when`)
 
 - [x] El esquema coincide con el contrato (`global_data_contract.models`).
-- [x] Relaciones y restricciones documentadas (ver diccionario de datos y `CHECK`/`FK` en la migración).
-- [x] La migración puede ejecutarse desde cero: `V1__crear_esquema_inicial.sql` no depende de datos previos y Flyway la aplicará automáticamente al levantar la aplicación contra una base de datos vacía.
+- [x] Relaciones y restricciones documentadas (ver diccionario de datos y `CHECK`/`FK` en el script).
+- [x] El script puede ejecutarse desde cero: `sql/schema.sql` no depende de datos previos.
