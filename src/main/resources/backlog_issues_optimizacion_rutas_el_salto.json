@@ -1,0 +1,1287 @@
+{
+  "project": {
+    "name": "Optimización de rutas para logística en el Corredor Industrial El Salto",
+    "version": "1.0",
+    "team": {
+      "backend": {
+        "developers": 2,
+        "responsibility": "Java Spring Boot, base de datos, API de mapas, integración con Python y endpoints para React"
+      },
+      "frontend": {
+        "developers": 1,
+        "responsibility": "React y experiencia/interfaz del chofer"
+      },
+      "optimizer": {
+        "developers": 1,
+        "responsibility": "Python, FastAPI y algoritmo de optimización"
+      }
+    },
+    "requirements_basis": [
+      "RF-01 Registro de puntos de entrega",
+      "RF-02 Cálculo de distancias y tiempos",
+      "RF-03 Cálculo de la ruta óptima",
+      "RF-04 Tráfico en tiempo real",
+      "RF-05 Recálculo ante cambios de tráfico",
+      "RF-06 Interfaz del chofer",
+      "RF-07 Errores de captura",
+      "RF-08 Historial",
+      "RNF-01 20 puntos en máximo 10 segundos",
+      "RNF-02 disponibilidad 99%",
+      "RNF-03 HTTPS y autenticación",
+      "RNF-04 máximo dos interacciones para consultar/marcar parada",
+      "RNF-05 compatibilidad móvil",
+      "RNF-06 mínimo 10 cálculos simultáneos"
+    ],
+    "rules": [
+      "El alcance geográfico es el Corredor Industrial El Salto y conexiones directas indicadas en la propuesta.",
+      "Para pruebas de tráfico se deben usar datos históricos descargados o mocks antes de consumir solicitudes reales para evitar cargos duplicados.",
+      "Antes de diseñar la interfaz del chofer debe realizarse al menos una sesión de shadowing con un chofer real en El Salto.",
+      "El piloto con chofer requiere aviso de privacidad, consentimiento informado y definición del periodo de conservación de datos de ubicación."
+    ]
+  },
+  "global_data_contract": {
+    "rules": [
+      "Los IDs son strings UUID generados por Spring Boot para entidades persistidas.",
+      "Los índices de matrices son 0-based y corresponden exactamente al orden del arreglo points.",
+      "distanceMatrix[i][j] es la distancia desde points[i] hasta points[j].",
+      "timeMatrix[i][j] es el tiempo estimado desde points[i] hasta points[j], en segundos.",
+      "Una ruta usa pointIds para identificar paradas; nunca se debe interpretar un índice de matriz como ID de base de datos.",
+      "Distancias se expresan en metros y tiempos en segundos en backend/Python. React puede convertirlos a km/minutos solo para presentación.",
+      "Coordenadas usan latitude y longitude como números decimales en grados.",
+      "Una ventana de tiempo usa start y end en formato ISO-8601 con zona horaria.",
+      "Las respuestas REST de Spring usan una estructura uniforme: {success, message, data, error}.",
+      "Los errores de validación usan códigos estables; el texto message puede cambiar sin romper integraciones.",
+      "React nunca llama directamente a Python ni a la API de mapas.",
+      "Python nunca llama directamente a la API de mapas; recibe matrices ya calculadas por Spring."
+    ],
+    "models": {
+      "DeliveryPoint": {
+        "id": "string UUID",
+        "reference": "string",
+        "address": "string|null",
+        "latitude": "number",
+        "longitude": "number",
+        "timeWindow": {
+          "start": "string ISO-8601|null",
+          "end": "string ISO-8601|null"
+        }
+      },
+      "OptimizeRequest": {
+        "requestId": "string UUID",
+        "points": "DeliveryPoint[]",
+        "distanceMatrix": "number[][]",
+        "timeMatrix": "number[][]",
+        "objective": "DISTANCE|TIME",
+        "depotIndex": "integer",
+        "timeWindows": "array de {startSecond,endSecond}|null"
+      },
+      "OptimizeResponse": {
+        "requestId": "string UUID",
+        "route": "string[] point IDs en orden de visita",
+        "routeIndexes": "integer[] índices de points en el mismo orden",
+        "totalDistanceMeters": "number",
+        "totalTimeSeconds": "number",
+        "status": "SUCCESS|INFEASIBLE|ERROR",
+        "errorCode": "string|null",
+        "message": "string|null"
+      },
+      "RouteResponse": {
+        "routeId": "string UUID",
+        "status": "CALCULATING|ACTIVE|COMPLETED|ERROR",
+        "stops": "array de {pointId,order,status}",
+        "totalDistanceMeters": "number",
+        "totalTimeSeconds": "number",
+        "updatedAt": "string ISO-8601"
+      },
+      "ApiResponse": {
+        "success": "boolean",
+        "message": "string",
+        "data": "object|null",
+        "error": {
+          "code": "string|null",
+          "details": "object|null"
+        }
+      }
+    }
+  },
+  "issues": [
+    {
+      "id": "ARC-001",
+      "title": "Definir arquitectura y responsabilidades",
+      "group": "BACKEND",
+      "depends_on": [],
+      "blocks": [
+        "CTR-001",
+        "MAP-001",
+        "DB-001",
+        "BE-001",
+        "PY-001",
+        "FE-001"
+      ],
+      "instructions": [
+        "Documentar React -> Spring Boot -> Maps API/PostgreSQL/Python.",
+        "Definir que Spring es el orquestador.",
+        "Definir que Python expone un servicio HTTP y no un script ejecutado directamente por Spring.",
+        "Definir que React consume exclusivamente endpoints de Spring."
+      ],
+      "deliverables": [
+        "Diagrama de arquitectura",
+        "Documento de responsabilidades",
+        "Diagrama de flujo principal"
+      ],
+      "done_when": [
+        "Los 4 desarrolladores aprueban la arquitectura",
+        "No existen responsabilidades duplicadas"
+      ]
+    },
+    {
+      "id": "CTR-001",
+      "title": "Crear contrato JSON oficial entre Spring, Python y React",
+      "group": "BACKEND + OPTIMIZER + FRONTEND",
+      "depends_on": [
+        "ARC-001"
+      ],
+      "blocks": [
+        "PY-002",
+        "PY-003",
+        "BE-005",
+        "BE-006",
+        "BE-007",
+        "BE-008",
+        "BE-009",
+        "FE-003",
+        "FE-004",
+        "FE-005",
+        "FE-006"
+      ],
+      "instructions": [
+        "Crear un archivo versionado contracts/api-contract.json o contracts/README.md.",
+        "Definir exactamente los modelos global_data_contract.",
+        "No permitir nombres alternativos como totalTime, distance, idPoint o latitud dentro del JSON de integración.",
+        "Definir que matrices son NxN y N coincide con points.length.",
+        "Definir códigos de error y estados antes de implementar consumidores."
+      ],
+      "deliverables": [
+        "Contrato JSON versionado",
+        "Ejemplos request/response válidos",
+        "Catálogo de errores"
+      ],
+      "done_when": [
+        "Spring, Python y React pueden implementar usando el mismo contrato",
+        "Cualquier cambio rompe versionado y requiere actualizar consumidores"
+      ]
+    },
+    {
+      "id": "MAP-001",
+      "title": "Seleccionar y documentar API de mapas",
+      "group": "BACKEND",
+      "depends_on": [
+        "ARC-001"
+      ],
+      "blocks": [
+        "BE-006",
+        "BE-007",
+        "BE-008",
+        "BE-009",
+        "BE-010"
+      ],
+      "instructions": [
+        "Comparar API de mapas seleccionada contra las necesidades de geocodificación, distancia, tiempo y tráfico.",
+        "Documentar límites, cuotas, costos, atribución y términos.",
+        "Definir proveedor y versión/configuración usada por el backend.",
+        "Preparar mocks para pruebas antes de consumir tráfico real."
+      ],
+      "deliverables": [
+        "Decisión documentada",
+        "Configuración de credenciales por variables de entorno",
+        "Mock de respuestas"
+      ],
+      "done_when": [
+        "La integración tiene proveedor definido",
+        "Las credenciales no están en Git",
+        "Existe una estrategia de pruebas sin cargos"
+      ]
+    },
+    {
+      "id": "DB-001",
+      "title": "Diseñar esquema de base de datos",
+      "group": "BACKEND",
+      "depends_on": [
+        "ARC-001",
+        "CTR-001"
+      ],
+      "blocks": [
+        "BE-002",
+        "BE-003",
+        "BE-004",
+        "BE-012"
+      ],
+      "instructions": [
+        "Diseñar tablas para usuarios, puntos de entrega, rutas y paradas de ruta.",
+        "Mantener UUID/string ID de integración para evitar acoplar React/Python a IDs numéricos.",
+        "Guardar latitude/longitude como valores decimales.",
+        "Guardar ventanas de tiempo como valores compatibles con ISO-8601 o convertirlas a una representación documentada.",
+        "Definir claves foráneas e índices necesarios para consultar rutas y puntos."
+      ],
+      "deliverables": [
+        "ERD",
+        "DDL/migración",
+        "Diccionario de datos"
+      ],
+      "done_when": [
+        "El esquema coincide con el contrato",
+        "Las relaciones y restricciones están documentadas",
+        "La migración puede ejecutarse desde cero"
+      ]
+    },
+    {
+      "id": "BE-001",
+      "title": "Crear proyecto base Spring Boot y configuración",
+      "group": "BACKEND",
+      "depends_on": [
+        "ARC-001"
+      ],
+      "blocks": [
+        "BE-002",
+        "BE-003",
+        "BE-005",
+        "BE-006"
+      ],
+      "instructions": [
+        "Configurar Spring Web, validación, persistencia y cliente HTTP.",
+        "Configurar PostgreSQL por variables de entorno.",
+        "Separar configuración de desarrollo/pruebas.",
+        "Crear estructura controller/service/repository/entity/dto/client."
+      ],
+      "done_when": [
+        "Spring inicia correctamente",
+        "Puede conectarse a PostgreSQL",
+        "Las credenciales están fuera del repositorio"
+      ]
+    },
+    {
+      "id": "PY-001",
+      "title": "Crear servicio Python base",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "ARC-001",
+        "CTR-001"
+      ],
+      "blocks": [
+        "PY-002",
+        "PY-003"
+      ],
+      "instructions": [
+        "Crear servicio independiente con FastAPI.",
+        "Configurar entorno reproducible.",
+        "No integrar mapas directamente.",
+        "Recibir exclusivamente el contrato definido por CTR-001."
+      ],
+      "done_when": [
+        "Servicio arranca",
+        "Existe endpoint health",
+        "Puede deserializar el contrato"
+      ]
+    },
+    {
+      "id": "FE-001",
+      "title": "Crear proyecto React y estructura base",
+      "group": "FRONTEND",
+      "depends_on": [
+        "ARC-001",
+        "CTR-001"
+      ],
+      "blocks": [
+        "FE-002",
+        "FE-003"
+      ],
+      "instructions": [
+        "Crear estructura de componentes, servicios HTTP, modelos y vistas.",
+        "Centralizar URL del backend mediante variable de entorno.",
+        "No llamar Python ni Maps directamente."
+      ],
+      "done_when": [
+        "React inicia",
+        "Existe estructura acordada",
+        "La configuración del backend es externa al código"
+      ]
+    },
+    {
+      "id": "BE-002",
+      "title": "Implementar entidades y repositorios de puntos",
+      "group": "BACKEND",
+      "depends_on": [
+        "DB-001",
+        "BE-001"
+      ],
+      "blocks": [
+        "BE-003",
+        "BE-004",
+        "BE-005"
+      ],
+      "instructions": [
+        "Implementar DeliveryPoint y relaciones necesarias.",
+        "Validar latitude entre -90 y 90 y longitude entre -180 y 180.",
+        "reference es obligatorio.",
+        "address puede ser null si se capturan coordenadas.",
+        "timeWindow puede ser null."
+      ],
+      "done_when": [
+        "CRUD interno probado",
+        "Validaciones coinciden con contrato"
+      ]
+    },
+    {
+      "id": "BE-003",
+      "title": "Endpoint de registro y validación de puntos",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-002",
+        "MAP-001",
+        "CTR-001"
+      ],
+      "blocks": [
+        "BE-004",
+        "BE-005",
+        "FE-004"
+      ],
+      "instructions": [
+        "Recibir address o latitude/longitude y reference.",
+        "Validar ubicación mediante Maps.",
+        "Rechazar ubicación no reconocida.",
+        "Normalizar la respuesta de Maps al DeliveryPoint del contrato.",
+        "Nunca guardar un punto inválido."
+      ],
+      "api": {
+        "method": "POST",
+        "path": "/api/v1/delivery-points",
+        "request": "DeliveryPoint sin id",
+        "response": "ApiResponse<DeliveryPoint>"
+      },
+      "done_when": [
+        "Ubicación válida crea punto",
+        "Ubicación inválida devuelve LOCATION_INVALID",
+        "React puede consumir la respuesta"
+      ]
+    },
+    {
+      "id": "BE-004",
+      "title": "Manejo unificado de errores de captura y Maps",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-003",
+        "CTR-001"
+      ],
+      "blocks": [
+        "FE-006",
+        "BE-007"
+      ],
+      "instructions": [
+        "Crear códigos: LOCATION_INVALID, MAPS_UNAVAILABLE, MAPS_RATE_LIMIT, VALIDATION_ERROR.",
+        "El cálculo de ruta debe bloquearse si existe un punto inválido.",
+        "Mantener message para usuario y code estable para frontend."
+      ],
+      "done_when": [
+        "Todos los errores tienen contrato",
+        "React no necesita interpretar texto libre para decidir qué mostrar"
+      ]
+    },
+    {
+      "id": "BE-005",
+      "title": "Servicio de distancias y tiempos entre puntos",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-003",
+        "MAP-001",
+        "CTR-001"
+      ],
+      "blocks": [
+        "BE-006",
+        "BE-007",
+        "PY-004"
+      ],
+      "instructions": [
+        "Consultar Maps para cada par de puntos.",
+        "Guardar distancia en metros y duración en segundos.",
+        "Mantener dirección i -> j.",
+        "No llamar Maps para pares inválidos."
+      ],
+      "done_when": [
+        "Devuelve datos normalizados",
+        "Un mismo par puede ser recuperado sin cambiar unidades"
+      ]
+    },
+    {
+      "id": "BE-006",
+      "title": "Construir matriz NxN de distancia y tiempo",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-005",
+        "CTR-001"
+      ],
+      "blocks": [
+        "PY-004",
+        "BE-008"
+      ],
+      "instructions": [
+        "Construir distanceMatrix y timeMatrix con N = points.length.",
+        "La posición [i][j] corresponde a points[i] -> points[j].",
+        "Mantener exactamente el mismo orden de points durante toda la solicitud.",
+        "Validar que ambas matrices sean NxN antes de enviar a Python."
+      ],
+      "done_when": [
+        "Matrices pasan validación estructural",
+        "Un test verifica al menos 3 puntos y todas las direcciones"
+      ]
+    },
+    {
+      "id": "BE-007",
+      "title": "Implementar caché de consultas Maps durante el cálculo",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-005",
+        "BE-006"
+      ],
+      "blocks": [
+        "BE-008",
+        "RNF-001"
+      ],
+      "instructions": [
+        "Clave de caché: origen + destino + contexto de tráfico.",
+        "Reutilizar resultado durante la sesión de cálculo.",
+        "No duplicar llamadas al proveedor para el mismo par y contexto.",
+        "Definir expiración o limpieza al terminar el cálculo."
+      ],
+      "done_when": [
+        "Las solicitudes repetidas reutilizan datos",
+        "Existe prueba que contabiliza llamadas al mock"
+      ]
+    },
+    {
+      "id": "PY-002",
+      "title": "Definir modelos Pydantic del optimizador",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "CTR-001",
+        "PY-001"
+      ],
+      "blocks": [
+        "PY-003",
+        "PY-004",
+        "PY-005"
+      ],
+      "instructions": [
+        "Implementar OptimizeRequest y OptimizeResponse exactamente.",
+        "Rechazar matrices cuyo tamaño no coincida con points.",
+        "Validar routeIndexes contra points.",
+        "Nunca devolver IDs que no existan en points."
+      ],
+      "done_when": [
+        "Los modelos aceptan el contrato oficial",
+        "Payload inválido devuelve error controlado"
+      ]
+    },
+    {
+      "id": "PY-003",
+      "title": "Implementar motor OR-Tools y restricciones",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "PY-002"
+      ],
+      "blocks": [
+        "PY-004",
+        "PY-005",
+        "PY-006"
+      ],
+      "instructions": [
+        "Implementar modelo de Vehicle Routing Problem con un vehículo inicialmente.",
+        "Usar matrices recibidas, no recalcular distancias.",
+        "Definir depotIndex.",
+        "Soportar objetivo DISTANCE y TIME.",
+        "Preparar restricción de ventanas de tiempo."
+      ],
+      "done_when": [
+        "Existe solución reproducible para dataset de prueba",
+        "El motor no depende de servicios externos"
+      ]
+    },
+    {
+      "id": "PY-004",
+      "title": "Implementar endpoint POST /optimize",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "PY-002",
+        "PY-003",
+        "BE-006"
+      ],
+      "blocks": [
+        "BE-009"
+      ],
+      "instructions": [
+        "Recibir exactamente OptimizeRequest.",
+        "Responder exactamente OptimizeResponse.",
+        "routeIndexes y route deben corresponder uno a uno.",
+        "Si no existe solución, status=INFEASIBLE."
+      ],
+      "api": {
+        "method": "POST",
+        "path": "/optimize",
+        "request": "OptimizeRequest",
+        "response": "OptimizeResponse"
+      },
+      "done_when": [
+        "Spring puede llamar el endpoint con un payload real",
+        "Casos SUCCESS e INFEASIBLE están probados"
+      ]
+    },
+    {
+      "id": "PY-005",
+      "title": "Pruebas del algoritmo con objetivos y ventanas",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "PY-004"
+      ],
+      "blocks": [
+        "BE-009",
+        "BE-010",
+        "PY-006"
+      ],
+      "instructions": [
+        "Probar minimización por distancia.",
+        "Probar minimización por tiempo.",
+        "Probar ventana de tiempo válida.",
+        "Probar ventana imposible.",
+        "Probar 1, 2, 5, 10 y 20 puntos."
+      ],
+      "done_when": [
+        "Los casos tienen resultados verificables",
+        "No se rompe el contrato de salida"
+      ]
+    },
+    {
+      "id": "BE-008",
+      "title": "Endpoint Spring para solicitar cálculo de ruta",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-006",
+        "BE-007",
+        "PY-004",
+        "CTR-001"
+      ],
+      "blocks": [
+        "BE-009",
+        "FE-007"
+      ],
+      "instructions": [
+        "Validar todos los puntos.",
+        "Construir matrices.",
+        "Crear requestId.",
+        "Enviar OptimizeRequest a Python.",
+        "No exponer detalles internos de Python a React."
+      ],
+      "api": {
+        "method": "POST",
+        "path": "/api/v1/routes/optimize",
+        "request": {
+          "pointIds": "string[]",
+          "objective": "DISTANCE|TIME",
+          "depotPointId": "string"
+        },
+        "response": "ApiResponse<RouteResponse>"
+      },
+      "done_when": [
+        "Un cálculo completo puede ejecutarse desde Spring",
+        "Los errores Python se traducen a errores del contrato Spring"
+      ]
+    },
+    {
+      "id": "BE-009",
+      "title": "Integrar respuesta Python y persistir ruta",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-008",
+        "DB-001",
+        "PY-004"
+      ],
+      "blocks": [
+        "FE-009",
+        "BE-012"
+      ],
+      "instructions": [
+        "Mapear routeIndexes a pointIds.",
+        "Persistir orden de paradas.",
+        "Persistir totalDistanceMeters y totalTimeSeconds.",
+        "Actualizar status de ruta."
+      ],
+      "done_when": [
+        "La ruta persistida coincide exactamente con la respuesta Python",
+        "No se pierde el orden de paradas"
+      ]
+    },
+    {
+      "id": "FE-002",
+      "title": "Crear modelos TypeScript/JS basados en contrato",
+      "group": "FRONTEND",
+      "depends_on": [
+        "CTR-001",
+        "FE-001"
+      ],
+      "blocks": [
+        "FE-003",
+        "FE-004",
+        "FE-005",
+        "FE-009"
+      ],
+      "instructions": [
+        "Copiar estructura conceptual del contrato, no crear nombres alternativos.",
+        "Representar metros/segundos internamente.",
+        "Convertir unidades únicamente en componentes de presentación."
+      ],
+      "done_when": [
+        "Los modelos frontend coinciden con los DTO JSON de Spring"
+      ]
+    },
+    {
+      "id": "FE-003",
+      "title": "Crear cliente HTTP para Spring",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-001",
+        "FE-002",
+        "CTR-001"
+      ],
+      "blocks": [
+        "FE-004",
+        "FE-007",
+        "FE-009",
+        "FE-017"
+      ],
+      "instructions": [
+        "Centralizar llamadas HTTP.",
+        "Manejar ApiResponse.",
+        "No duplicar lógica de URLs ni formatos JSON.",
+        "Mapear códigos de error del backend."
+      ],
+      "done_when": [
+        "Todos los componentes consumen el mismo cliente HTTP"
+      ]
+    },
+    {
+      "id": "FE-004",
+      "title": "Interfaz para capturar puntos de entrega",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-002",
+        "FE-003",
+        "BE-003"
+      ],
+      "blocks": [
+        "FE-005",
+        "FE-006"
+      ],
+      "instructions": [
+        "Campos: reference, address o coordenadas, ventana opcional.",
+        "No permitir enviar punto sin ubicación.",
+        "Mostrar confirmación de ubicación validada."
+      ],
+      "done_when": [
+        "El formulario produce exactamente el payload esperado por Spring"
+      ]
+    },
+    {
+      "id": "FE-005",
+      "title": "Lista de paradas y orden de captura",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-004"
+      ],
+      "blocks": [
+        "FE-007",
+        "FE-009"
+      ],
+      "instructions": [
+        "Mostrar IDs internos solo si son necesarios para debug; al usuario mostrar reference/address.",
+        "Mantener el orden de points estable.",
+        "No reordenar points antes de enviarlos a Spring."
+      ],
+      "done_when": [
+        "El orden mostrado coincide con el payload enviado"
+      ]
+    },
+    {
+      "id": "FE-006",
+      "title": "Mostrar errores de ubicación y bloquear cálculo",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-004",
+        "BE-004"
+      ],
+      "blocks": [
+        "FE-007"
+      ],
+      "instructions": [
+        "Interpretar LOCATION_INVALID y otros códigos.",
+        "Deshabilitar calcular mientras exista un punto inválido.",
+        "Permitir corregir el punto."
+      ],
+      "done_when": [
+        "No se puede solicitar una ruta con datos inválidos"
+      ]
+    },
+    {
+      "id": "FE-007",
+      "title": "Botón y flujo de cálculo de ruta",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-005",
+        "FE-006",
+        "BE-008"
+      ],
+      "blocks": [
+        "FE-009",
+        "FE-010"
+      ],
+      "instructions": [
+        "Enviar pointIds, objective y depotPointId.",
+        "Mostrar estado CALCULATING.",
+        "No permitir múltiples solicitudes accidentales mientras una está en proceso."
+      ],
+      "done_when": [
+        "El usuario puede iniciar un cálculo y recibe RouteResponse"
+      ]
+    },
+    {
+      "id": "FE-009",
+      "title": "Mostrar resultado de ruta",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-007",
+        "BE-009"
+      ],
+      "blocks": [
+        "FE-010",
+        "FE-011",
+        "FE-012"
+      ],
+      "instructions": [
+        "Mostrar orden de paradas, distancia total y tiempo total.",
+        "Usar route/pointId del backend para resolver cada parada.",
+        "No calcular nuevamente la ruta en React."
+      ],
+      "done_when": [
+        "Resultado visual coincide con RouteResponse"
+      ]
+    },
+    {
+      "id": "FE-010",
+      "title": "Integrar mapa en React",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-009",
+        "MAP-001"
+      ],
+      "blocks": [
+        "FE-011",
+        "FE-012",
+        "FE-013"
+      ],
+      "instructions": [
+        "Usar la tecnología de mapas definida por backend/proyecto.",
+        "Mostrar puntos y recorrido.",
+        "No llamar directamente al proveedor de mapas para lógica de negocio."
+      ],
+      "done_when": [
+        "El mapa representa las coordenadas y orden recibidos del backend"
+      ]
+    },
+    {
+      "id": "FE-011",
+      "title": "Mostrar ruta, marcadores y siguiente destino",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-010",
+        "FE-009"
+      ],
+      "blocks": [
+        "FE-012",
+        "FE-013"
+      ],
+      "instructions": [
+        "Distinguir visualmente paradas pendientes, actual y visitadas.",
+        "El siguiente destino se determina por el orden de RouteResponse."
+      ],
+      "done_when": [
+        "El usuario puede identificar claramente el siguiente destino"
+      ]
+    },
+    {
+      "id": "FE-012",
+      "title": "Ubicación actual y marcar parada visitada",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-011"
+      ],
+      "blocks": [
+        "FE-013",
+        "FE-014"
+      ],
+      "instructions": [
+        "Mostrar ubicación actual cuando exista permiso/disponibilidad.",
+        "Permitir marcar parada visitada.",
+        "Actualizar automáticamente siguiente destino."
+      ],
+      "done_when": [
+        "Marcar visitada actualiza el estado visual y el siguiente destino"
+      ]
+    },
+    {
+      "id": "FE-013",
+      "title": "Actualizar interfaz ante recálculo",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-012",
+        "BE-011"
+      ],
+      "blocks": [
+        "FE-015"
+      ],
+      "instructions": [
+        "Recibir nueva ruta.",
+        "No pedir al chofer volver a capturar paradas ya definidas.",
+        "Informar que la ruta fue actualizada."
+      ],
+      "done_when": [
+        "Una nueva RouteResponse reemplaza correctamente la ruta restante"
+      ]
+    },
+    {
+      "id": "BE-010",
+      "title": "Integrar tráfico real y datos simulados",
+      "group": "BACKEND",
+      "depends_on": [
+        "MAP-001",
+        "BE-005",
+        "BE-007"
+      ],
+      "blocks": [
+        "PY-006",
+        "BE-011"
+      ],
+      "instructions": [
+        "Consultar tráfico al momento del cálculo según capacidades del proveedor.",
+        "Usar mocks/históricos para pruebas.",
+        "Incorporar el tráfico en timeMatrix.",
+        "Mantener distanceMatrix separada."
+      ],
+      "done_when": [
+        "Existe prueba con tráfico simulado",
+        "timeMatrix refleja el tiempo afectado por tráfico"
+      ]
+    },
+    {
+      "id": "PY-006",
+      "title": "Soportar recálculo con matriz de tiempos actualizada",
+      "group": "OPTIMIZER",
+      "depends_on": [
+        "PY-004",
+        "PY-005",
+        "BE-010"
+      ],
+      "blocks": [
+        "BE-011"
+      ],
+      "instructions": [
+        "Aceptar nueva timeMatrix.",
+        "Recibir únicamente puntos restantes/no visitados o una representación equivalente definida en contrato.",
+        "Mantener consistencia de pointIds e índices.",
+        "Producir nueva ruta con el mismo OptimizeResponse."
+      ],
+      "done_when": [
+        "El mismo contrato funciona para cálculo inicial y recálculo"
+      ]
+    },
+    {
+      "id": "BE-011",
+      "title": "Detectar cambio significativo y recalcular ruta restante",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-010",
+        "PY-006",
+        "BE-009"
+      ],
+      "blocks": [
+        "FE-013",
+        "FE-015"
+      ],
+      "instructions": [
+        "Definir explícitamente el umbral de cambio significativo antes de programarlo.",
+        "Comparar tiempo estimado anterior vs actual por tramo.",
+        "Excluir paradas ya visitadas.",
+        "Solicitar nuevo cálculo a Python.",
+        "Notificar al frontend la nueva ruta."
+      ],
+      "done_when": [
+        "Existe caso sin cambio, caso con cambio bajo y caso con cambio significativo",
+        "Las paradas visitadas nunca reaparecen como pendientes"
+      ]
+    },
+    {
+      "id": "FE-014",
+      "title": "Validar usabilidad del chofer y máximo dos interacciones",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-012"
+      ],
+      "blocks": [
+        "FE-015"
+      ],
+      "instructions": [
+        "Validar consulta de ruta y marcar parada visitada con máximo dos interacciones.",
+        "Realizar prueba con usuario/chofer cuando sea posible.",
+        "Registrar observaciones y ajustes."
+      ],
+      "done_when": [
+        "El flujo cumple RNF-04"
+      ]
+    },
+    {
+      "id": "FE-015",
+      "title": "Optimización responsive para Android/iOS",
+      "group": "FRONTEND",
+      "depends_on": [
+        "FE-010",
+        "FE-014"
+      ],
+      "blocks": [
+        "QA-002"
+      ],
+      "instructions": [
+        "Probar en navegadores móviles comunes.",
+        "No depender de componentes adicionales obligatorios.",
+        "Priorizar controles utilizables mientras el chofer está operando el vehículo."
+      ],
+      "done_when": [
+        "Cumple RNF-05 en dispositivos de prueba"
+      ]
+    },
+    {
+      "id": "DB-002",
+      "title": "Persistir historial de rutas",
+      "group": "BACKEND",
+      "depends_on": [
+        "DB-001",
+        "BE-009"
+      ],
+      "blocks": [
+        "BE-012",
+        "FE-016"
+      ],
+      "instructions": [
+        "Guardar fecha, puntos, distancia total y tiempo total.",
+        "Conservar orden de paradas.",
+        "Permitir consulta posterior."
+      ],
+      "done_when": [
+        "Una ruta generada puede consultarse después sin perder sus datos"
+      ]
+    },
+    {
+      "id": "BE-012",
+      "title": "Endpoint de historial",
+      "group": "BACKEND",
+      "depends_on": [
+        "DB-002"
+      ],
+      "blocks": [
+        "FE-016"
+      ],
+      "instructions": [
+        "Exponer consulta paginable o acotada.",
+        "Mantener el mismo formato de IDs y unidades.",
+        "Proteger información de rutas mediante autenticación."
+      ],
+      "api": {
+        "method": "GET",
+        "path": "/api/v1/routes/history",
+        "response": "ApiResponse<RouteResponse[]>"
+      },
+      "done_when": [
+        "React puede consultar historial",
+        "Los datos coinciden con DB"
+      ]
+    },
+    {
+      "id": "FE-016",
+      "title": "Interfaz de consulta de historial",
+      "group": "FRONTEND",
+      "depends_on": [
+        "BE-012"
+      ],
+      "blocks": [
+        "QA-002"
+      ],
+      "instructions": [
+        "Mostrar fecha, paradas, distancia y tiempo.",
+        "No modificar datos históricos desde esta vista salvo que se defina posteriormente."
+      ],
+      "done_when": [
+        "El historial puede consultarse desde React"
+      ]
+    },
+    {
+      "id": "AUTH-001",
+      "title": "Autenticación y autorización de rutas",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-001",
+        "DB-001"
+      ],
+      "blocks": [
+        "SEC-001",
+        "QA-002"
+      ],
+      "instructions": [
+        "Implementar autenticación.",
+        "Restringir rutas y ubicaciones a usuarios autenticados.",
+        "Definir mecanismo de sesión/token antes de integrar React."
+      ],
+      "done_when": [
+        "Usuario no autenticado recibe error de autorización",
+        "Usuario autenticado puede acceder según permisos"
+      ]
+    },
+    {
+      "id": "SEC-001",
+      "title": "HTTPS y manejo seguro de credenciales",
+      "group": "BACKEND",
+      "depends_on": [
+        "AUTH-001",
+        "MAP-001"
+      ],
+      "blocks": [
+        "QA-002"
+      ],
+      "instructions": [
+        "Configurar HTTPS entre frontend y servidor.",
+        "No subir API keys, passwords o tokens a Git.",
+        "Usar variables de entorno/secrets.",
+        "Revisar logs para evitar exponer credenciales."
+      ],
+      "done_when": [
+        "Las comunicaciones externas relevantes usan HTTPS",
+        "Secretos no aparecen en repositorio"
+      ]
+    },
+    {
+      "id": "PERF-001",
+      "title": "Prueba de rendimiento hasta 20 puntos",
+      "group": "BACKEND + OPTIMIZER",
+      "depends_on": [
+        "BE-008",
+        "PY-005",
+        "BE-010"
+      ],
+      "blocks": [
+        "PERF-002",
+        "QA-002"
+      ],
+      "instructions": [
+        "Medir tiempo total incluyendo Maps según RNF-01.",
+        "Probar 20 puntos.",
+        "Separar tiempo de Maps, Spring y Python en métricas.",
+        "Usar mocks para identificar cuellos de botella sin depender del costo real del proveedor."
+      ],
+      "done_when": [
+        "Existe medición documentada",
+        "Se verifica objetivo de máximo 10 segundos o se documenta el cuello de botella"
+      ]
+    },
+    {
+      "id": "PERF-002",
+      "title": "Prueba de 10 cálculos simultáneos",
+      "group": "BACKEND + OPTIMIZER",
+      "depends_on": [
+        "PERF-001",
+        "AUTH-001"
+      ],
+      "blocks": [
+        "QA-002"
+      ],
+      "instructions": [
+        "Ejecutar al menos 10 solicitudes concurrentes.",
+        "Medir degradación respecto a RNF-01.",
+        "Revisar pool de conexiones, concurrencia del servicio Python y límites de Maps."
+      ],
+      "done_when": [
+        "Existe evidencia de la prueba y resultados documentados"
+      ]
+    },
+    {
+      "id": "FIELD-001",
+      "title": "Shadowing con chofer y validación de contexto",
+      "group": "FRONTEND + BACKEND",
+      "depends_on": [
+        "ARC-001"
+      ],
+      "blocks": [
+        "FE-014",
+        "FE-015",
+        "QA-001"
+      ],
+      "instructions": [
+        "Realizar al menos una sesión de shadowing con un chofer real en El Salto antes de cerrar la interfaz.",
+        "Documentar conectividad, interacción, visibilidad y flujo real.",
+        "Convertir hallazgos en tareas concretas."
+      ],
+      "done_when": [
+        "Existe evidencia de la sesión",
+        "Los hallazgos críticos se convierten en issues"
+      ]
+    },
+    {
+      "id": "PRIV-001",
+      "title": "Aviso de privacidad, consentimiento y retención para piloto",
+      "group": "BACKEND",
+      "depends_on": [
+        "ARC-001"
+      ],
+      "blocks": [
+        "QA-001"
+      ],
+      "instructions": [
+        "Definir qué datos personales se capturan.",
+        "Obtener consentimiento explícito del chofer para el piloto.",
+        "Definir periodo de conservación de ubicación.",
+        "No iniciar piloto real antes de completar esta tarea."
+      ],
+      "done_when": [
+        "Aviso y consentimiento están definidos",
+        "Periodo de retención documentado"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Pruebas end-to-end del flujo completo",
+      "group": "BACKEND + FRONTEND + OPTIMIZER",
+      "depends_on": [
+        "BE-009",
+        "FE-013",
+        "FE-015",
+        "AUTH-001",
+        "SEC-001",
+        "PRIV-001"
+      ],
+      "blocks": [
+        "QA-002"
+      ],
+      "instructions": [
+        "Probar captura -> validación Maps -> matrices -> Python -> ruta -> React.",
+        "Probar error de ubicación.",
+        "Probar tráfico simulado y recálculo.",
+        "Probar parada visitada.",
+        "Probar autenticación.",
+        "Probar historial si está habilitado."
+      ],
+      "done_when": [
+        "El flujo completo funciona con datos reales de prueba",
+        "Los contratos no presentan inconsistencias"
+      ]
+    },
+    {
+      "id": "QA-002",
+      "title": "Pruebas de aceptación y cierre",
+      "group": "TODOS",
+      "depends_on": [
+        "QA-001",
+        "PERF-002",
+        "FIELD-001"
+      ],
+      "blocks": [],
+      "instructions": [
+        "Ejecutar checklist RF-01 a RF-08 y RNF-01 a RNF-06 según alcance/prioridad.",
+        "Registrar defectos.",
+        "No cerrar proyecto con issues críticos abiertos.",
+        "Verificar documentación y versiones de contratos."
+      ],
+      "done_when": [
+        "Todos los criterios de aceptación definidos están verificados",
+        "Backlog de defectos queda documentado"
+      ]
+    }
+  ],
+  "dependency_rules": {
+    "critical_sequence": [
+      "ARC-001 -> CTR-001 -> BE/PY/FE base",
+      "CTR-001 -> modelos de los tres equipos",
+      "MAP-001 + BE-003 -> BE-005 -> BE-006 -> PY-004/BE-008",
+      "PY-002 -> PY-003 -> PY-004 -> BE-008 -> BE-009",
+      "BE-009 -> FE-009 -> FE-010 -> FE-011 -> FE-012",
+      "BE-010 -> PY-006 -> BE-011 -> FE-013",
+      "BE-009 -> DB-002 -> BE-012 -> FE-016",
+      "AUTH-001 -> SEC-001 -> QA-001",
+      "PERF-001 -> PERF-002",
+      "QA-001 + PERF-002 + FIELD-001 -> QA-002"
+    ],
+    "parallel_work": [
+      "Después de ARC-001 y CTR-001, Backend puede avanzar en DB/MAP mientras Python prepara modelos y frontend prepara modelos/componentes.",
+      "Python puede desarrollar el algoritmo con matrices mockeadas sin esperar a que Maps esté terminado.",
+      "Frontend puede desarrollar pantallas con mocks de RouteResponse sin esperar al backend.",
+      "La integración real solo debe comenzar cuando CTR-001 esté aprobado."
+    ],
+    "change_control": [
+      "No cambiar nombres, tipos, unidades, estados o códigos de error del contrato sin actualizar CTR-001.",
+      "Cualquier cambio de contrato debe indicar versión, motivo, productor afectado y consumidores afectados.",
+      "No usar el mismo campo para representar unidades diferentes.",
+      "No conectar React directamente a Python o Maps.",
+      "No hacer que Python vuelva a consultar Maps."
+    ]
+  },
+  "recommended_issue_order": [
+    "ARC-001",
+    "CTR-001",
+    "MAP-001",
+    "DB-001",
+    "BE-001",
+    "PY-001",
+    "FE-001",
+    "BE-002",
+    "BE-003",
+    "BE-004",
+    "BE-005",
+    "BE-006",
+    "BE-007",
+    "PY-002",
+    "PY-003",
+    "PY-004",
+    "PY-005",
+    "FE-002",
+    "FE-003",
+    "FE-004",
+    "FE-005",
+    "FE-006",
+    "BE-008",
+    "BE-009",
+    "FE-007",
+    "FE-009",
+    "FE-010",
+    "FE-011",
+    "FE-012",
+    "BE-010",
+    "PY-006",
+    "BE-011",
+    "FE-013",
+    "FE-014",
+    "FE-015",
+    "DB-002",
+    "BE-012",
+    "FE-016",
+    "AUTH-001",
+    "SEC-001",
+    "FIELD-001",
+    "PRIV-001",
+    "PERF-001",
+    "PERF-002",
+    "QA-001",
+    "QA-002"
+  ]
+}
