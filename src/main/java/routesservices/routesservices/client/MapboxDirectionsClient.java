@@ -27,18 +27,25 @@ public class MapboxDirectionsClient {
         this.accessToken = accessToken;
     }
 
+    /**
+     * @param withTraffic true usa el perfil "driving-traffic" (tráfico en tiempo real,
+     *                     duration ya lo incorpora); false usa "driving" (sin tráfico).
+     *                     distance no cambia de forma relevante entre perfiles.
+     */
     public DistanceTimeResult getDistanceAndDuration(BigDecimal originLatitude, BigDecimal originLongitude,
-                                                      BigDecimal destinationLatitude, BigDecimal destinationLongitude) {
+                                                      BigDecimal destinationLatitude, BigDecimal destinationLongitude,
+                                                      boolean withTraffic) {
         String coordinates = originLongitude.toPlainString() + "," + originLatitude.toPlainString()
                 + ";" + destinationLongitude.toPlainString() + "," + destinationLatitude.toPlainString();
+        String profile = withTraffic ? "driving-traffic" : "driving";
 
         try {
             MapboxDirectionsResponse response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
-                            .path("/directions/v5/mapbox/driving/{coordinates}")
+                            .path("/directions/v5/mapbox/{profile}/{coordinates}")
                             .queryParam("access_token", accessToken)
                             .queryParam("overview", "false")
-                            .build(coordinates))
+                            .build(profile, coordinates))
                     .retrieve()
                     .body(MapboxDirectionsResponse.class);
             return toResult(response);
