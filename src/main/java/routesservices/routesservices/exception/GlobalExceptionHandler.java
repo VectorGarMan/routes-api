@@ -37,6 +37,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.MAPS_RATE_LIMIT.name(), null)));
     }
 
+    @ExceptionHandler(RouteInfeasibleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRouteInfeasible(RouteInfeasibleException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.ROUTE_INFEASIBLE.name(), null)));
+    }
+
+    @ExceptionHandler(OptimizerUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimizerUnavailable(OptimizerUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(ex.getMessage(), new ApiError(ErrorCode.OPTIMIZER_UNAVAILABLE.name(), null)));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
