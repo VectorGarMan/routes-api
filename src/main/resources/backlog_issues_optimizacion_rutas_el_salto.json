@@ -819,7 +819,8 @@
       "title": "Ubicación actual y marcar parada visitada",
       "group": "FRONTEND",
       "depends_on": [
-        "FE-011"
+        "FE-011",
+        "BE-013"
       ],
       "blocks": [
         "FE-013",
@@ -827,8 +828,9 @@
       ],
       "instructions": [
         "Mostrar ubicación actual cuando exista permiso/disponibilidad.",
-        "Permitir marcar parada visitada.",
-        "Actualizar automáticamente siguiente destino."
+        "Permitir marcar parada visitada llamando a POST /api/v1/routes/{routeId}/stops/{pointId}/visit (BE-013).",
+        "Actualizar automáticamente siguiente destino a partir de la RouteResponse devuelta.",
+        "Manejar el error de intentar marcar una parada fuera de orden (debe marcarse primero la pendiente anterior)."
       ],
       "done_when": [
         "Marcar visitada actualiza el estado visual y el siguiente destino"
@@ -907,7 +909,8 @@
       "depends_on": [
         "BE-010",
         "PY-006",
-        "BE-009"
+        "BE-009",
+        "BE-013"
       ],
       "blocks": [
         "FE-013",
@@ -997,8 +1000,7 @@
       ],
       "instructions": [
         "Exponer consulta paginable o acotada.",
-        "Mantener el mismo formato de IDs y unidades.",
-        "Proteger información de rutas mediante autenticación."
+        "Mantener el mismo formato de IDs y unidades."
       ],
       "api": {
         "method": "GET",
@@ -1008,6 +1010,34 @@
       "done_when": [
         "React puede consultar historial",
         "Los datos coinciden con DB"
+      ]
+    },
+    {
+      "id": "BE-013",
+      "title": "Endpoint para marcar parada visitada",
+      "group": "BACKEND",
+      "depends_on": [
+        "BE-009"
+      ],
+      "blocks": [
+        "FE-012",
+        "BE-011"
+      ],
+      "instructions": [
+        "Exponer un endpoint para marcar una parada como visitada.",
+        "Exigir que se marquen en orden: rechazar marcar una parada si existe una pendiente anterior.",
+        "Ser idempotente: reintentar marcar una parada ya visitada no debe fallar.",
+        "Si era la última parada pendiente, actualizar el status de la ruta a COMPLETED."
+      ],
+      "api": {
+        "method": "POST",
+        "path": "/api/v1/routes/{routeId}/stops/{pointId}/visit",
+        "response": "ApiResponse<RouteResponse>"
+      },
+      "done_when": [
+        "Marcar en orden actualiza el status de la parada y de la ruta",
+        "Marcar fuera de orden devuelve un error controlado",
+        "Marcar la última parada pendiente completa la ruta"
       ]
     },
     {
@@ -1141,6 +1171,7 @@
       "group": "BACKEND + FRONTEND + OPTIMIZER",
       "depends_on": [
         "BE-009",
+        "BE-013",
         "FE-013",
         "FE-015",
         "SEC-001",
@@ -1153,7 +1184,7 @@
         "Probar captura -> validación Maps -> matrices -> Python -> ruta -> React.",
         "Probar error de ubicación.",
         "Probar tráfico simulado y recálculo.",
-        "Probar parada visitada.",
+        "Probar parada visitada (POST /api/v1/routes/{routeId}/stops/{pointId}/visit), incluyendo el caso de marcar fuera de orden.",
         "Probar historial si está habilitado."
       ],
       "done_when": [
@@ -1189,8 +1220,8 @@
       "CTR-001 -> modelos de los tres equipos",
       "MAP-001 + BE-003 -> BE-005 -> BE-006 -> PY-004/BE-008",
       "PY-002 -> PY-003 -> PY-004 -> BE-008 -> BE-009",
-      "BE-009 -> FE-009 -> FE-010 -> FE-011 -> FE-012",
-      "BE-010 -> PY-006 -> BE-011 -> FE-013",
+      "BE-009 -> FE-009 -> FE-010 -> FE-011 -> BE-013 -> FE-012",
+      "BE-010 -> PY-006 -> BE-013 -> BE-011 -> FE-013",
       "BE-009 -> DB-002 -> BE-012 -> FE-016",
       "MAP-001 -> SEC-001 -> QA-001",
       "PERF-001 -> PERF-002",
@@ -1239,6 +1270,7 @@
     "FE-009",
     "FE-010",
     "FE-011",
+    "BE-013",
     "FE-012",
     "BE-010",
     "PY-006",

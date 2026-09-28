@@ -134,9 +134,30 @@ collection:
       created: 1790533200000
       modified: 1790533200000
       isPrivate: false
-      description: "Lista el historial de rutas, más reciente primero. page/size opcionales (default page=0, size=20). Sin autenticación todavía (pendiente de AUTH-001)."
+      description: "Lista el historial de rutas, más reciente primero. page/size opcionales (default page=0, size=20). Sin autenticación: proyecto de acceso libre."
       sortKey: -1790533200000
     method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.0.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: localhost:8080/api/v1/routes/{routeId}/stops/{pointId}/visit
+    name: ✅Marcar Parada Visitada (BE-013)
+    meta:
+      id: req_f6a7b8c9d0e16f2a3b4c5d6e7f8a9b0c
+      created: 1790533300000
+      modified: 1790533300000
+      isPrivate: false
+      description: "Marca una parada como visitada. Debe marcarse en orden (no se puede saltar una pendiente anterior); reintentar una ya visitada es idempotente. Si era la última pendiente, la ruta pasa a COMPLETED. Reemplaza {routeId} y {pointId}."
+      sortKey: -1790533300000
+    method: POST
     headers:
       - name: User-Agent
         value: insomnia/12.0.0

@@ -15,6 +15,7 @@ import routesservices.routesservices.dto.RouteResponseDto;
 import routesservices.routesservices.service.RouteHistoryService;
 import routesservices.routesservices.service.RouteOptimizationService;
 import routesservices.routesservices.service.RouteRecalculationService;
+import routesservices.routesservices.service.RouteStopService;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,12 +27,14 @@ public class RouteController {
     private final RouteOptimizationService service;
     private final RouteRecalculationService recalculationService;
     private final RouteHistoryService historyService;
+    private final RouteStopService stopService;
 
     public RouteController(RouteOptimizationService service, RouteRecalculationService recalculationService,
-                            RouteHistoryService historyService) {
+                            RouteHistoryService historyService, RouteStopService stopService) {
         this.service = service;
         this.recalculationService = recalculationService;
         this.historyService = historyService;
+        this.stopService = stopService;
     }
 
     @PostMapping("/optimize")
@@ -50,12 +53,24 @@ public class RouteController {
         return ResponseEntity.ok(ApiResponse.ok("Ruta verificada", response));
     }
 
-    /** BE-012: paginado (más reciente primero); sin autenticación todavía (pendiente de AUTH-001). */
+    /** BE-012: paginado (más reciente primero). Sin autenticación: proyecto de acceso libre. */
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<List<RouteResponseDto>>> history(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         List<RouteResponseDto> history = historyService.getHistory(page, size);
         return ResponseEntity.ok(ApiResponse.ok("Historial de rutas", history));
+    }
+
+    /**
+     * BE-013: marca una parada como visitada. Debe marcarse en orden (no se
+     * puede saltar una pendiente anterior); reintentar una ya visitada es
+     * idempotente. Si era la última pendiente, la ruta pasa a COMPLETED.
+     */
+    @PostMapping("/{routeId}/stops/{pointId}/visit")
+    public ResponseEntity<ApiResponse<RouteResponseDto>> markStopVisited(@PathVariable UUID routeId,
+                                                                          @PathVariable UUID pointId) {
+        RouteResponseDto response = stopService.markVisited(routeId, pointId);
+        return ResponseEntity.ok(ApiResponse.ok("Parada marcada como visitada", response));
     }
 }
