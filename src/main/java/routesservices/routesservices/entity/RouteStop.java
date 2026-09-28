@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -47,4 +48,8 @@ public class RouteStop {
 
     @Column(name = "visited_at")
     private OffsetDateTime visitedAt;
+
+    /** Tiempo estimado (segundos) del tramo parada_anterior -> esta parada, al momento de calcular/recalcular (BE-011). */
+    @Column(name = "estimated_leg_seconds", precision = 12, scale = 2)
+    private BigDecimal estimatedLegSeconds;
 }

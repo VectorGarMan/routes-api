@@ -82,7 +82,7 @@ public class RouteOptimizationService {
 
         OptimizeResponsePayload response = pythonOptimizerClient.optimize(payload);
 
-        Route route = buildRoute(request, response, pointsById);
+        Route route = buildRoute(request, response, pointsById, matrices);
         Route saved = routeRepository.save(route);
 
         return toRouteResponse(saved);
@@ -100,7 +100,7 @@ public class RouteOptimizationService {
     }
 
     private Route buildRoute(OptimizeRouteRequest request, OptimizeResponsePayload response,
-                              Map<UUID, DeliveryPoint> pointsById) {
+                              Map<UUID, DeliveryPoint> pointsById, DistanceMatrixResult matrices) {
         if ("INFEASIBLE".equals(response.status())) {
             throw new RouteInfeasibleException("No fue posible calcular una ruta viable con los puntos y restricciones dados");
         }
@@ -122,17 +122,24 @@ public class RouteOptimizationService {
 
         List<RouteStop> stops = new ArrayList<>();
         List<String> pointOrder = response.route();
+        List<Integer> matrixIndexes = response.routeIndexes();
         for (int order = 0; order < pointOrder.size(); order++) {
             UUID pointId = UUID.fromString(pointOrder.get(order));
             DeliveryPoint point = pointsById.get(pointId);
             if (point == null) {
                 throw new OptimizerUnavailableException("El optimizador devolvió un punto que no forma parte de la solicitud");
             }
+
+            int currentMatrixIndex = matrixIndexes.get(order);
+            int previousMatrixIndex = order == 0 ? currentMatrixIndex : matrixIndexes.get(order - 1);
+            BigDecimal legSeconds = matrices.timeMatrix()[previousMatrixIndex][currentMatrixIndex];
+
             stops.add(RouteStop.builder()
                     .route(route)
                     .point(point)
                     .stopOrder(order)
                     .status("PENDING")
+                    .estimatedLegSeconds(legSeconds)
                     .build());
         }
         route.setStops(stops);

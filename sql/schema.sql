@@ -50,6 +50,10 @@ CREATE TABLE route_stops (
     stop_order INTEGER NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     visited_at TIMESTAMPTZ,
+    -- BE-011: tiempo estimado (segundos) del tramo parada_anterior -> esta parada,
+    -- calculado al momento de crear/recalcular la ruta. Se compara luego contra el
+    -- tiempo actual para detectar cambios significativos de tráfico.
+    estimated_leg_seconds NUMERIC(12,2),
     CONSTRAINT chk_route_stops_status CHECK (status IN ('PENDING', 'CURRENT', 'VISITED')),
     CONSTRAINT uq_route_stops_order UNIQUE (route_id, stop_order),
     CONSTRAINT uq_route_stops_point UNIQUE (route_id, point_id)
