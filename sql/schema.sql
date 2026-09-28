@@ -62,3 +62,5 @@ CREATE TABLE route_stops (
 CREATE INDEX idx_route_stops_route_id ON route_stops (route_id);
 CREATE INDEX idx_routes_created_by ON routes (created_by);
 CREATE INDEX idx_delivery_points_created_by ON delivery_points (created_by);
+-- DB-002: consulta de historial ordenada por fecha (BE-012 la usa para paginar).
+CREATE INDEX idx_routes_created_at ON routes (created_at DESC);
