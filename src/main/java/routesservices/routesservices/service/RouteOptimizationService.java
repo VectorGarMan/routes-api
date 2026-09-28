@@ -1,6 +1,7 @@
 package routesservices.routesservices.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import routesservices.routesservices.client.OptimizeRequestPayload;
 import routesservices.routesservices.client.OptimizeResponsePayload;
 import routesservices.routesservices.client.PythonOptimizerClient;
@@ -10,23 +11,26 @@ import routesservices.routesservices.dto.OptimizeRouteRequest;
 import routesservices.routesservices.dto.RouteResponseDto;
 import routesservices.routesservices.dto.RouteStopDto;
 import routesservices.routesservices.entity.DeliveryPoint;
+import routesservices.routesservices.entity.Route;
+import routesservices.routesservices.entity.RouteStop;
 import routesservices.routesservices.exception.OptimizerUnavailableException;
 import routesservices.routesservices.exception.RouteInfeasibleException;
 import routesservices.routesservices.repository.DeliveryPointRepository;
+import routesservices.routesservices.repository.RouteRepository;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Endpoint de negocio de BE-008: valida los puntos, construye las matrices,
- * genera un requestId y delega el cálculo al servicio Python. No persiste la
- * ruta todavía (eso es BE-009); "No exponer detalles internos de Python a
- * React" se traduce aquí a RouteInfeasibleException/OptimizerUnavailableException.
+ * Endpoint de negocio de BE-008/BE-009: valida los puntos, construye las
+ * matrices, delega el cálculo al servicio Python, y persiste la ruta
+ * resultante (routes + route_stops) exactamente como la devolvió Python.
  */
 @Service
 public class RouteOptimizationService {
@@ -34,18 +38,24 @@ public class RouteOptimizationService {
     private final DeliveryPointRepository deliveryPointRepository;
     private final DistanceMatrixService distanceMatrixService;
     private final PythonOptimizerClient pythonOptimizerClient;
+    private final RouteRepository routeRepository;
 
     public RouteOptimizationService(DeliveryPointRepository deliveryPointRepository,
                                      DistanceMatrixService distanceMatrixService,
-                                     PythonOptimizerClient pythonOptimizerClient) {
+                                     PythonOptimizerClient pythonOptimizerClient,
+                                     RouteRepository routeRepository) {
         this.deliveryPointRepository = deliveryPointRepository;
         this.distanceMatrixService = distanceMatrixService;
         this.pythonOptimizerClient = pythonOptimizerClient;
+        this.routeRepository = routeRepository;
     }
 
+    @Transactional
     public RouteResponseDto optimize(OptimizeRouteRequest request) {
         List<UUID> pointIds = request.pointIds().stream().map(UUID::fromString).toList();
         List<DeliveryPoint> orderedPoints = loadPointsInRequestedOrder(pointIds);
+        Map<UUID, DeliveryPoint> pointsById = orderedPoints.stream()
+                .collect(Collectors.toMap(DeliveryPoint::getId, point -> point));
 
         int depotIndex = pointIds.indexOf(UUID.fromString(request.depotPointId()));
         if (depotIndex < 0) {
@@ -70,7 +80,11 @@ public class RouteOptimizationService {
         );
 
         OptimizeResponsePayload response = pythonOptimizerClient.optimize(payload);
-        return toRouteResponse(response);
+
+        Route route = buildRoute(request, response, pointsById);
+        Route saved = routeRepository.save(route);
+
+        return toRouteResponse(saved);
     }
 
     private List<DeliveryPoint> loadPointsInRequestedOrder(List<UUID> pointIds) {
@@ -84,7 +98,8 @@ public class RouteOptimizationService {
         return pointIds.stream().map(byId::get).toList();
     }
 
-    private RouteResponseDto toRouteResponse(OptimizeResponsePayload response) {
+    private Route buildRoute(OptimizeRouteRequest request, OptimizeResponsePayload response,
+                              Map<UUID, DeliveryPoint> pointsById) {
         if ("INFEASIBLE".equals(response.status())) {
             throw new RouteInfeasibleException("No fue posible calcular una ruta viable con los puntos y restricciones dados");
         }
@@ -92,19 +107,50 @@ public class RouteOptimizationService {
             throw new OptimizerUnavailableException("El optimizador devolvió un estado inesperado");
         }
 
-        List<RouteStopDto> stops = new ArrayList<>();
-        List<String> route = response.route();
-        for (int order = 0; order < route.size(); order++) {
-            stops.add(new RouteStopDto(route.get(order), order, "PENDING"));
+        OffsetDateTime now = OffsetDateTime.now();
+        Route route = Route.builder()
+                .requestId(UUID.fromString(response.requestId()))
+                .status("ACTIVE")
+                .objective(request.objective())
+                .depotPointId(UUID.fromString(request.depotPointId()))
+                .totalDistanceMeters(BigDecimal.valueOf(response.totalDistanceMeters()))
+                .totalTimeSeconds(BigDecimal.valueOf(response.totalTimeSeconds()))
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        List<RouteStop> stops = new ArrayList<>();
+        List<String> pointOrder = response.route();
+        for (int order = 0; order < pointOrder.size(); order++) {
+            UUID pointId = UUID.fromString(pointOrder.get(order));
+            DeliveryPoint point = pointsById.get(pointId);
+            if (point == null) {
+                throw new OptimizerUnavailableException("El optimizador devolvió un punto que no forma parte de la solicitud");
+            }
+            stops.add(RouteStop.builder()
+                    .route(route)
+                    .point(point)
+                    .stopOrder(order)
+                    .status("PENDING")
+                    .build());
         }
+        route.setStops(stops);
+        return route;
+    }
+
+    private RouteResponseDto toRouteResponse(Route route) {
+        List<RouteStopDto> stops = route.getStops().stream()
+                .sorted(Comparator.comparingInt(RouteStop::getStopOrder))
+                .map(stop -> new RouteStopDto(stop.getPoint().getId().toString(), stop.getStopOrder(), stop.getStatus()))
+                .toList();
 
         return new RouteResponseDto(
-                response.requestId(),
-                "ACTIVE",
+                route.getId().toString(),
+                route.getStatus(),
                 stops,
-                BigDecimal.valueOf(response.totalDistanceMeters()),
-                BigDecimal.valueOf(response.totalTimeSeconds()),
-                OffsetDateTime.now()
+                route.getTotalDistanceMeters(),
+                route.getTotalTimeSeconds(),
+                route.getUpdatedAt()
         );
     }
 }
