@@ -106,6 +106,27 @@ collection:
         send: true
         store: true
       rebuildPath: true
+  - url: localhost:8080/api/v1/routes/{routeId}/recalculate
+    name: ✅Verificar/Recalcular Ruta por Tráfico (BE-011)
+    meta:
+      id: req_d4e5f6a7b8c94d0e1f2a3b4c5d6e7f8a
+      created: 1790533100000
+      modified: 1790533100000
+      isPrivate: false
+      description: "Verifica si algún tramo pendiente cambió de forma significativa (umbral 25%) y, si aplica, recalcula excluyendo paradas ya visitadas. Reemplaza {routeId} por el routeId devuelto por /optimize."
+      sortKey: -1790533100000
+    method: POST
+    headers:
+      - name: User-Agent
+        value: insomnia/12.0.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
 cookieJar:
   name: Default Jar
   meta:
