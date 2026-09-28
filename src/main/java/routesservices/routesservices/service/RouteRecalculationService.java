@@ -9,7 +9,6 @@ import routesservices.routesservices.client.PythonOptimizerClient;
 import routesservices.routesservices.dto.DeliveryPointResponse;
 import routesservices.routesservices.dto.DistanceMatrixResult;
 import routesservices.routesservices.dto.RouteResponseDto;
-import routesservices.routesservices.dto.RouteStopDto;
 import routesservices.routesservices.entity.DeliveryPoint;
 import routesservices.routesservices.entity.Route;
 import routesservices.routesservices.entity.RouteStop;
@@ -65,7 +64,7 @@ public class RouteRecalculationService {
         List<RouteStop> remaining = orderedStops.stream().filter(stop -> !isVisited(stop)).toList();
 
         if (remaining.isEmpty()) {
-            return toRouteResponse(route);
+            return RouteResponseMapper.toRouteResponse(route);
         }
 
         DeliveryPoint currentPosition = visited.isEmpty()
@@ -73,12 +72,12 @@ public class RouteRecalculationService {
                 : visited.get(visited.size() - 1).getPoint();
 
         if (!hasSignificantChange(currentPosition, remaining)) {
-            return toRouteResponse(route);
+            return RouteResponseMapper.toRouteResponse(route);
         }
 
         recalculateRemaining(route, visited, remaining, currentPosition);
         Route saved = routeRepository.save(route);
-        return toRouteResponse(saved);
+        return RouteResponseMapper.toRouteResponse(saved);
     }
 
     private boolean isVisited(RouteStop stop) {
@@ -176,19 +175,4 @@ public class RouteRecalculationService {
                         "El optimizador devolvió un punto que no forma parte del recálculo"));
     }
 
-    private RouteResponseDto toRouteResponse(Route route) {
-        List<RouteStopDto> stops = route.getStops().stream()
-                .sorted(Comparator.comparingInt(RouteStop::getStopOrder))
-                .map(stop -> new RouteStopDto(stop.getPoint().getId().toString(), stop.getStopOrder(), stop.getStatus()))
-                .toList();
-
-        return new RouteResponseDto(
-                route.getId().toString(),
-                route.getStatus(),
-                stops,
-                route.getTotalDistanceMeters(),
-                route.getTotalTimeSeconds(),
-                route.getUpdatedAt()
-        );
-    }
 }
