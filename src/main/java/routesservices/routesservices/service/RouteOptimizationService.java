@@ -62,7 +62,8 @@ public class RouteOptimizationService {
             throw new IllegalArgumentException("depotPointId debe estar incluido en pointIds");
         }
 
-        DistanceMatrixResult matrices = distanceMatrixService.buildMatrix(orderedPoints);
+        DistanceMatrixResult matrices = distanceMatrixService.buildMatrix(
+                orderedPoints, new MapsQueryCache(), TrafficContext.REAL_TIME);
 
         String requestId = UUID.randomUUID().toString();
         List<DeliveryPointResponse> pythonPoints = orderedPoints.stream()

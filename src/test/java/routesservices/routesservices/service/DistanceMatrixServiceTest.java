@@ -35,7 +35,7 @@ class DistanceMatrixServiceTest {
         DeliveryPoint p2 = point(2);
         List<DeliveryPoint> points = List.of(p0, p1, p2);
 
-        when(pointDistanceService.getDistanceAndTime(any(), any()))
+        when(pointDistanceService.getDistanceAndTime(any(), any(), any()))
                 .thenAnswer(invocation -> {
                     DeliveryPoint origin = invocation.getArgument(0);
                     DeliveryPoint destination = invocation.getArgument(1);
@@ -71,7 +71,7 @@ class DistanceMatrixServiceTest {
         DeliveryPoint p2 = point(2);
         List<DeliveryPoint> points = List.of(p0, p1, p2);
 
-        when(pointDistanceService.getDistanceAndTime(any(), any()))
+        when(pointDistanceService.getDistanceAndTime(any(), any(), any()))
                 .thenAnswer(invocation -> {
                     DeliveryPoint origin = invocation.getArgument(0);
                     DeliveryPoint destination = invocation.getArgument(1);
@@ -85,13 +85,13 @@ class DistanceMatrixServiceTest {
         DistanceMatrixService service = new DistanceMatrixService(pointDistanceService);
         MapsQueryCache cache = new MapsQueryCache();
 
-        DistanceMatrixResult first = service.buildMatrix(points, cache, "sin-trafico");
+        DistanceMatrixResult first = service.buildMatrix(points, cache, TrafficContext.NONE);
         // Misma caché y mismo contexto de tráfico -> no debe consultar de nuevo al proveedor.
-        DistanceMatrixResult second = service.buildMatrix(points, cache, "sin-trafico");
+        DistanceMatrixResult second = service.buildMatrix(points, cache, TrafficContext.NONE);
 
         assertThat(second.distanceMatrix()).isEqualTo(first.distanceMatrix());
         assertThat(second.timeMatrix()).isEqualTo(first.timeMatrix());
-        verify(pointDistanceService, times(9)).getDistanceAndTime(any(), any());
+        verify(pointDistanceService, times(9)).getDistanceAndTime(any(), any(), any());
     }
 
     @Test
@@ -100,17 +100,17 @@ class DistanceMatrixServiceTest {
         DeliveryPoint p1 = point(1);
         List<DeliveryPoint> points = List.of(p0, p1);
 
-        when(pointDistanceService.getDistanceAndTime(any(), any()))
+        when(pointDistanceService.getDistanceAndTime(any(), any(), any()))
                 .thenReturn(new DistanceTimeResult(BigDecimal.ONE, BigDecimal.ONE));
 
         DistanceMatrixService service = new DistanceMatrixService(pointDistanceService);
         MapsQueryCache cache = new MapsQueryCache();
 
-        service.buildMatrix(points, cache, "trafico-normal");
-        service.buildMatrix(points, cache, "trafico-pesado");
+        service.buildMatrix(points, cache, TrafficContext.NONE);
+        service.buildMatrix(points, cache, TrafficContext.REAL_TIME);
 
         // 2x2 direcciones por cada contexto de tráfico distinto = 8 llamadas.
-        verify(pointDistanceService, times(8)).getDistanceAndTime(any(), any());
+        verify(pointDistanceService, times(8)).getDistanceAndTime(any(), any(), any());
     }
 
     private DeliveryPoint point(int index) {
