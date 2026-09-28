@@ -9,7 +9,6 @@ import routesservices.routesservices.dto.DeliveryPointResponse;
 import routesservices.routesservices.dto.DistanceMatrixResult;
 import routesservices.routesservices.dto.OptimizeRouteRequest;
 import routesservices.routesservices.dto.RouteResponseDto;
-import routesservices.routesservices.dto.RouteStopDto;
 import routesservices.routesservices.entity.DeliveryPoint;
 import routesservices.routesservices.entity.Route;
 import routesservices.routesservices.entity.RouteStop;
@@ -21,7 +20,6 @@ import routesservices.routesservices.repository.RouteRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,7 +83,7 @@ public class RouteOptimizationService {
         Route route = buildRoute(request, response, pointsById, matrices);
         Route saved = routeRepository.save(route);
 
-        return toRouteResponse(saved);
+        return RouteResponseMapper.toRouteResponse(saved);
     }
 
     private List<DeliveryPoint> loadPointsInRequestedOrder(List<UUID> pointIds) {
@@ -144,21 +142,5 @@ public class RouteOptimizationService {
         }
         route.setStops(stops);
         return route;
-    }
-
-    private RouteResponseDto toRouteResponse(Route route) {
-        List<RouteStopDto> stops = route.getStops().stream()
-                .sorted(Comparator.comparingInt(RouteStop::getStopOrder))
-                .map(stop -> new RouteStopDto(stop.getPoint().getId().toString(), stop.getStopOrder(), stop.getStatus()))
-                .toList();
-
-        return new RouteResponseDto(
-                route.getId().toString(),
-                route.getStatus(),
-                stops,
-                route.getTotalDistanceMeters(),
-                route.getTotalTimeSeconds(),
-                route.getUpdatedAt()
-        );
     }
 }

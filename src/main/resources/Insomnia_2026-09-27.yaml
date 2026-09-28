@@ -127,6 +127,27 @@ collection:
         send: true
         store: true
       rebuildPath: true
+  - url: localhost:8080/api/v1/routes/history?page=0&size=20
+    name: ✅Historial de Rutas (BE-012)
+    meta:
+      id: req_e5f6a7b8c9d05e1f2a3b4c5d6e7f8a9b
+      created: 1790533200000
+      modified: 1790533200000
+      isPrivate: false
+      description: "Lista el historial de rutas, más reciente primero. page/size opcionales (default page=0, size=20). Sin autenticación todavía (pendiente de AUTH-001)."
+      sortKey: -1790533200000
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.0.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
 cookieJar:
   name: Default Jar
   meta:
