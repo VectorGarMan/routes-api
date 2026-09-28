@@ -2,6 +2,7 @@ package routesservices.routesservices.service;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import routesservices.routesservices.dto.RouteResponseDto;
 import routesservices.routesservices.repository.RouteRepository;
 
@@ -23,6 +24,7 @@ public class RouteHistoryService {
         this.routeRepository = routeRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<RouteResponseDto> getHistory(int page, int size) {
         if (page < 0) {
             throw new IllegalArgumentException("page debe ser >= 0");
