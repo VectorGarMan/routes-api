@@ -1,17 +1,9 @@
 -- DB-001: Esquema inicial de base de datos
--- Tablas: users, delivery_points, routes, route_stops
+-- Tablas: delivery_points, routes, route_stops
+-- Acceso libre, sin autenticación de usuarios (decisión de negocio).
 -- Los IDs de integracion (contrato React/Spring/Python) son UUID, nunca IDs numericos.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username VARCHAR(100) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(30) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_users_username UNIQUE (username)
-);
 
 CREATE TABLE delivery_points (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,7 +13,6 @@ CREATE TABLE delivery_points (
     longitude NUMERIC(9,6) NOT NULL,
     time_window_start TIMESTAMPTZ,
     time_window_end TIMESTAMPTZ,
-    created_by UUID REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_delivery_points_latitude CHECK (latitude BETWEEN -90 AND 90),
     CONSTRAINT chk_delivery_points_longitude CHECK (longitude BETWEEN -180 AND 180)
@@ -35,7 +26,6 @@ CREATE TABLE routes (
     depot_point_id UUID NOT NULL REFERENCES delivery_points(id),
     total_distance_meters NUMERIC(12,2),
     total_time_seconds NUMERIC(12,2),
-    created_by UUID REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_routes_request_id UNIQUE (request_id),
@@ -60,7 +50,5 @@ CREATE TABLE route_stops (
 );
 
 CREATE INDEX idx_route_stops_route_id ON route_stops (route_id);
-CREATE INDEX idx_routes_created_by ON routes (created_by);
-CREATE INDEX idx_delivery_points_created_by ON delivery_points (created_by);
 -- DB-002: consulta de historial ordenada por fecha (BE-012 la usa para paginar).
 CREATE INDEX idx_routes_created_at ON routes (created_at DESC);

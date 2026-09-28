@@ -8,19 +8,9 @@ Bloquea: BE-002, BE-003, BE-004, BE-012.
 
 ```mermaid
 erDiagram
-    USERS ||--o{ DELIVERY_POINTS : "created_by"
-    USERS ||--o{ ROUTES : "created_by"
     DELIVERY_POINTS ||--o{ ROUTE_STOPS : "point_id"
     DELIVERY_POINTS ||--o{ ROUTES : "depot_point_id"
     ROUTES ||--o{ ROUTE_STOPS : "route_id"
-
-    USERS {
-        uuid id PK
-        varchar username
-        varchar password_hash
-        varchar role
-        timestamptz created_at
-    }
 
     DELIVERY_POINTS {
         uuid id PK
@@ -30,7 +20,6 @@ erDiagram
         numeric longitude
         timestamptz time_window_start
         timestamptz time_window_end
-        uuid created_by FK
         timestamptz created_at
     }
 
@@ -42,7 +31,6 @@ erDiagram
         uuid depot_point_id FK
         numeric total_distance_meters
         numeric total_time_seconds
-        uuid created_by FK
         timestamptz created_at
         timestamptz updated_at
     }
@@ -59,15 +47,7 @@ erDiagram
 
 ## Diccionario de datos
 
-### `users`
-
-| Columna | Tipo | Nulo | Descripción |
-|---|---|---|---|
-| id | UUID (PK) | No | Identificador de integración, generado con `gen_random_uuid()`. |
-| username | VARCHAR(100) | No | Único. Usado para autenticación (AUTH-001). |
-| password_hash | VARCHAR(255) | No | Hash de contraseña, nunca texto plano. |
-| role | VARCHAR(30) | No | Rol del usuario (p. ej. `DRIVER`, `ADMIN`). |
-| created_at | TIMESTAMPTZ | No | Fecha de alta. |
+> Acceso libre: no existe tabla `users` ni columnas `created_by` (decisión de negocio, sin autenticación).
 
 ### `delivery_points` (mapea `DeliveryPoint` del contrato)
 
@@ -79,7 +59,6 @@ erDiagram
 | latitude | NUMERIC(9,6) | No | Validado en rango [-90, 90]. |
 | longitude | NUMERIC(9,6) | No | Validado en rango [-180, 180]. |
 | time_window_start / time_window_end | TIMESTAMPTZ | Sí | Corresponden a `timeWindow.start/end` (ISO-8601). Ambos pueden ser `null`. |
-| created_by | UUID (FK users) | Sí | Usuario que capturó el punto. |
 | created_at | TIMESTAMPTZ | No | Fecha de captura. |
 
 ### `routes` (mapea `RouteResponse` / `OptimizeRequest.requestId`)
@@ -93,7 +72,6 @@ erDiagram
 | depot_point_id | UUID (FK delivery_points) | No | Punto de partida (`depotIndex` resuelto a `pointId`). |
 | total_distance_meters | NUMERIC(12,2) | Sí | Metros, nunca kilómetros (conversión solo en presentación). |
 | total_time_seconds | NUMERIC(12,2) | Sí | Segundos, nunca minutos. |
-| created_by | UUID (FK users) | Sí | Usuario/chofer que solicitó el cálculo. |
 | created_at / updated_at | TIMESTAMPTZ | No | Auditoría. |
 
 ### `route_stops` (mapea `RouteResponse.stops`)

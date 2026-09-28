@@ -27,7 +27,7 @@
       "RF-08 Historial",
       "RNF-01 20 puntos en máximo 10 segundos",
       "RNF-02 disponibilidad 99%",
-      "RNF-03 HTTPS y autenticación",
+      "RNF-03 HTTPS",
       "RNF-04 máximo dos interacciones para consultar/marcar parada",
       "RNF-05 compatibilidad móvil",
       "RNF-06 mínimo 10 cálculos simultáneos"
@@ -217,7 +217,7 @@
         "BE-012"
       ],
       "instructions": [
-        "Diseñar tablas para usuarios, puntos de entrega, rutas y paradas de ruta.",
+        "Diseñar tablas para puntos de entrega, rutas y paradas de ruta (acceso libre, sin tabla de usuarios).",
         "Mantener UUID/string ID de integración para evitar acoplar React/Python a IDs numéricos.",
         "Guardar latitude/longitude como valores decimales.",
         "Guardar ventanas de tiempo como valores compatibles con ISO-8601 o convertirlas a una representación documentada.",
@@ -1029,33 +1029,10 @@
       ]
     },
     {
-      "id": "AUTH-001",
-      "title": "Autenticación y autorización de rutas",
-      "group": "BACKEND",
-      "depends_on": [
-        "BE-001",
-        "DB-001"
-      ],
-      "blocks": [
-        "SEC-001",
-        "QA-002"
-      ],
-      "instructions": [
-        "Implementar autenticación.",
-        "Restringir rutas y ubicaciones a usuarios autenticados.",
-        "Definir mecanismo de sesión/token antes de integrar React."
-      ],
-      "done_when": [
-        "Usuario no autenticado recibe error de autorización",
-        "Usuario autenticado puede acceder según permisos"
-      ]
-    },
-    {
       "id": "SEC-001",
       "title": "HTTPS y manejo seguro de credenciales",
       "group": "BACKEND",
       "depends_on": [
-        "AUTH-001",
         "MAP-001"
       ],
       "blocks": [
@@ -1101,8 +1078,7 @@
       "title": "Prueba de 10 cálculos simultáneos",
       "group": "BACKEND + OPTIMIZER",
       "depends_on": [
-        "PERF-001",
-        "AUTH-001"
+        "PERF-001"
       ],
       "blocks": [
         "QA-002"
@@ -1167,7 +1143,6 @@
         "BE-009",
         "FE-013",
         "FE-015",
-        "AUTH-001",
         "SEC-001",
         "PRIV-001"
       ],
@@ -1179,7 +1154,6 @@
         "Probar error de ubicación.",
         "Probar tráfico simulado y recálculo.",
         "Probar parada visitada.",
-        "Probar autenticación.",
         "Probar historial si está habilitado."
       ],
       "done_when": [
@@ -1218,7 +1192,7 @@
       "BE-009 -> FE-009 -> FE-010 -> FE-011 -> FE-012",
       "BE-010 -> PY-006 -> BE-011 -> FE-013",
       "BE-009 -> DB-002 -> BE-012 -> FE-016",
-      "AUTH-001 -> SEC-001 -> QA-001",
+      "MAP-001 -> SEC-001 -> QA-001",
       "PERF-001 -> PERF-002",
       "QA-001 + PERF-002 + FIELD-001 -> QA-002"
     ],
@@ -1275,7 +1249,6 @@
     "DB-002",
     "BE-012",
     "FE-016",
-    "AUTH-001",
     "SEC-001",
     "FIELD-001",
     "PRIV-001",
