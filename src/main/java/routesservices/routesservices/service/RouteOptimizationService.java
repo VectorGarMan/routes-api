@@ -1,7 +1,10 @@
 package routesservices.routesservices.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import routesservices.routesservices.client.MapboxDirectionsClient;
 import routesservices.routesservices.client.OptimizeRequestPayload;
 import routesservices.routesservices.client.OptimizeResponsePayload;
 import routesservices.routesservices.client.PythonOptimizerClient;
@@ -16,6 +19,9 @@ import routesservices.routesservices.exception.OptimizerUnavailableException;
 import routesservices.routesservices.exception.RouteInfeasibleException;
 import routesservices.routesservices.repository.DeliveryPointRepository;
 import routesservices.routesservices.repository.RouteRepository;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -33,19 +39,25 @@ import java.util.stream.Collectors;
 @Service
 public class RouteOptimizationService {
 
+    private static final Logger log = LoggerFactory.getLogger(RouteOptimizationService.class);
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().build();
+
     private final DeliveryPointRepository deliveryPointRepository;
     private final DistanceMatrixService distanceMatrixService;
     private final PythonOptimizerClient pythonOptimizerClient;
     private final RouteRepository routeRepository;
+    private final MapboxDirectionsClient directionsClient;
 
     public RouteOptimizationService(DeliveryPointRepository deliveryPointRepository,
                                      DistanceMatrixService distanceMatrixService,
                                      PythonOptimizerClient pythonOptimizerClient,
-                                     RouteRepository routeRepository) {
+                                     RouteRepository routeRepository,
+                                     MapboxDirectionsClient directionsClient) {
         this.deliveryPointRepository = deliveryPointRepository;
         this.distanceMatrixService = distanceMatrixService;
         this.pythonOptimizerClient = pythonOptimizerClient;
         this.routeRepository = routeRepository;
+        this.directionsClient = directionsClient;
     }
 
     @Transactional
@@ -141,6 +153,21 @@ public class RouteOptimizationService {
                     .build());
         }
         route.setStops(stops);
+        route.setRouteGeometry(fetchGeometryJson(stops));
         return route;
+    }
+
+    /** Geometría real (calles) de la ruta completa, en el orden final de paradas. */
+    private String fetchGeometryJson(List<RouteStop> orderedStops) {
+        List<BigDecimal[]> latLngPoints = orderedStops.stream()
+                .map(stop -> new BigDecimal[]{stop.getPoint().getLatitude(), stop.getPoint().getLongitude()})
+                .toList();
+        try {
+            List<List<Double>> geometry = directionsClient.getRouteGeometry(latLngPoints, true);
+            return OBJECT_MAPPER.writeValueAsString(geometry);
+        } catch (Exception ex) {
+            log.warn("No se pudo obtener la geometría de la ruta desde Mapbox; se guarda la ruta sin geometría", ex);
+            return null;
+        }
     }
 }

@@ -26,6 +26,9 @@ CREATE TABLE routes (
     depot_point_id UUID NOT NULL REFERENCES delivery_points(id),
     total_distance_meters NUMERIC(12,2),
     total_time_seconds NUMERIC(12,2),
+    -- DB-003: geometría real de la ruta (GeoJSON [[lng,lat], ...]) obtenida de Mapbox
+    -- Directions al calcular/recalcular, para dibujarla siguiendo las calles.
+    route_geometry TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_routes_request_id UNIQUE (request_id),

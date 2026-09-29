@@ -8,6 +8,10 @@ import java.util.List;
 record MapboxDirectionsResponse(List<MapboxRoute> routes) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record MapboxRoute(double distance, double duration) {
+    record MapboxRoute(double distance, double duration, MapboxGeometry geometry) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record MapboxGeometry(List<List<Double>> coordinates) {
     }
 }

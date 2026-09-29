@@ -23,6 +23,9 @@ public record RouteResponseDto(
         @Schema(description = "Tiempo total estimado de la ruta en segundos", example = "3240.00")
         BigDecimal totalTimeSeconds,
 
+        @Schema(description = "Geometría real de la ruta (calles), lista de [longitud, latitud] en formato GeoJSON")
+        List<List<Double>> routeGeometry,
+
         @Schema(description = "Fecha y hora de la última actualización (ISO-8601)", example = "2025-06-10T09:15:00-06:00")
         OffsetDateTime updatedAt
 ) {
