@@ -9,6 +9,8 @@ import routesservices.routesservices.exception.MapsRateLimitException;
 import routesservices.routesservices.exception.MapsUnavailableException;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Distancia y tiempo de viaje entre un par de puntos (dirección origen -> destino),
@@ -49,6 +51,43 @@ public class MapboxDirectionsClient {
                     .retrieve()
                     .body(MapboxDirectionsResponse.class);
             return toResult(response);
+        } catch (HttpClientErrorException.TooManyRequests ex) {
+            throw new MapsRateLimitException("Límite de solicitudes a Mapbox excedido");
+        } catch (RestClientException ex) {
+            throw new MapsUnavailableException("El servicio de mapas (Mapbox) no está disponible", ex);
+        }
+    }
+
+    /**
+     * Geometría real (calles) de la ruta completa, en orden de paradas.
+     * Devuelve coordenadas en formato GeoJSON: cada punto es [longitud, latitud].
+     * Requiere al menos 2 puntos; Mapbox admite hasta 25 waypoints por solicitud.
+     */
+    public List<List<Double>> getRouteGeometry(List<BigDecimal[]> orderedLatLngPoints, boolean withTraffic) {
+        if (orderedLatLngPoints.size() < 2) {
+            return List.of();
+        }
+
+        String coordinates = orderedLatLngPoints.stream()
+                .map(latLng -> latLng[1].toPlainString() + "," + latLng[0].toPlainString())
+                .collect(Collectors.joining(";"));
+        String profile = withTraffic ? "driving-traffic" : "driving";
+
+        try {
+            MapboxDirectionsResponse response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/directions/v5/mapbox/{profile}/{coordinates}")
+                            .queryParam("access_token", accessToken)
+                            .queryParam("overview", "full")
+                            .queryParam("geometries", "geojson")
+                            .build(profile, coordinates))
+                    .retrieve()
+                    .body(MapboxDirectionsResponse.class);
+
+            if (response == null || response.routes() == null || response.routes().isEmpty()) {
+                throw new MapsUnavailableException("Mapbox no devolvió una geometría de ruta");
+            }
+            return response.routes().get(0).geometry().coordinates();
         } catch (HttpClientErrorException.TooManyRequests ex) {
             throw new MapsRateLimitException("Límite de solicitudes a Mapbox excedido");
         } catch (RestClientException ex) {

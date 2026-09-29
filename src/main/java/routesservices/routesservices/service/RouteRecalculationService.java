@@ -1,8 +1,11 @@
 package routesservices.routesservices.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import routesservices.routesservices.client.DistanceTimeResult;
+import routesservices.routesservices.client.MapboxDirectionsClient;
 import routesservices.routesservices.client.OptimizeRequestPayload;
 import routesservices.routesservices.client.OptimizeResponsePayload;
 import routesservices.routesservices.client.PythonOptimizerClient;
@@ -15,6 +18,8 @@ import routesservices.routesservices.entity.RouteStop;
 import routesservices.routesservices.exception.OptimizerUnavailableException;
 import routesservices.routesservices.exception.RouteInfeasibleException;
 import routesservices.routesservices.repository.RouteRepository;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -37,19 +42,25 @@ public class RouteRecalculationService {
     /** Umbral de cambio significativo: diferencia relativa > 25% en el tiempo de un tramo. */
     static final BigDecimal SIGNIFICANT_CHANGE_THRESHOLD = BigDecimal.valueOf(0.25);
 
+    private static final Logger log = LoggerFactory.getLogger(RouteRecalculationService.class);
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().build();
+
     private final RouteRepository routeRepository;
     private final PointDistanceService pointDistanceService;
     private final DistanceMatrixService distanceMatrixService;
     private final PythonOptimizerClient pythonOptimizerClient;
+    private final MapboxDirectionsClient directionsClient;
 
     public RouteRecalculationService(RouteRepository routeRepository,
                                       PointDistanceService pointDistanceService,
                                       DistanceMatrixService distanceMatrixService,
-                                      PythonOptimizerClient pythonOptimizerClient) {
+                                      PythonOptimizerClient pythonOptimizerClient,
+                                      MapboxDirectionsClient directionsClient) {
         this.routeRepository = routeRepository;
         this.pointDistanceService = pointDistanceService;
         this.distanceMatrixService = distanceMatrixService;
         this.pythonOptimizerClient = pythonOptimizerClient;
+        this.directionsClient = directionsClient;
     }
 
     @Transactional
@@ -164,7 +175,23 @@ public class RouteRecalculationService {
 
         route.setTotalDistanceMeters(BigDecimal.valueOf(response.totalDistanceMeters()));
         route.setTotalTimeSeconds(BigDecimal.valueOf(response.totalTimeSeconds()));
+        route.setRouteGeometry(fetchGeometryJson(route.getStops()));
         route.setUpdatedAt(OffsetDateTime.now());
+    }
+
+    /** Geometría real (calles) de la ruta completa, en el orden final de paradas (visitadas + recalculadas). */
+    private String fetchGeometryJson(List<RouteStop> stops) {
+        List<BigDecimal[]> latLngPoints = stops.stream()
+                .sorted(Comparator.comparingInt(RouteStop::getStopOrder))
+                .map(stop -> new BigDecimal[]{stop.getPoint().getLatitude(), stop.getPoint().getLongitude()})
+                .toList();
+        try {
+            List<List<Double>> geometry = directionsClient.getRouteGeometry(latLngPoints, true);
+            return OBJECT_MAPPER.writeValueAsString(geometry);
+        } catch (Exception ex) {
+            log.warn("No se pudo obtener la geometría de la ruta desde Mapbox; se guarda el recálculo sin geometría", ex);
+            return null;
+        }
     }
 
     private DeliveryPoint findPointById(List<DeliveryPoint> points, UUID pointId) {

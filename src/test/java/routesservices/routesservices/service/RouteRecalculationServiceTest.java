@@ -5,6 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import routesservices.routesservices.client.DistanceTimeResult;
+import routesservices.routesservices.client.MapboxDirectionsClient;
 import routesservices.routesservices.client.OptimizeResponsePayload;
 import routesservices.routesservices.client.PythonOptimizerClient;
 import routesservices.routesservices.dto.DistanceMatrixResult;
@@ -44,9 +45,11 @@ class RouteRecalculationServiceTest {
     private DistanceMatrixService distanceMatrixService;
     @Mock
     private PythonOptimizerClient pythonOptimizerClient;
+    @Mock
+    private MapboxDirectionsClient directionsClient;
 
     private RouteRecalculationService service() {
-        return new RouteRecalculationService(routeRepository, pointDistanceService, distanceMatrixService, pythonOptimizerClient);
+        return new RouteRecalculationService(routeRepository, pointDistanceService, distanceMatrixService, pythonOptimizerClient, directionsClient);
     }
 
     @Test

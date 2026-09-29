@@ -52,6 +52,9 @@ public class Route {
     @Column(name = "total_time_seconds", precision = 12, scale = 2)
     private BigDecimal totalTimeSeconds;
 
+    @Column(name = "route_geometry", columnDefinition = "TEXT")
+    private String routeGeometry;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
